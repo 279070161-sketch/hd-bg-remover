@@ -73,17 +73,48 @@ export function App() {
       setProgressPercent(25);
       setProgressKey('正在通过高精 AI 模型进行无损抠图...');
 
-      // Original pure & flawless background removal
-      const blob = await removeBackground(file, {
-        publicPath: 'https://static.img.ly/background-removal-data/1.4.5/',
-        output: { format: 'image/png', quality: 1.0 },
-        progress: (_key: string, current: number, total: number) => {
-          if (total > 0) {
-            const pct = Math.min(90, Math.round(25 + (current / total) * 65));
-            setProgressPercent(pct);
-          }
-        },
-      });
+      let blob: Blob | null = null;
+
+      // CDN Node 1: Fast jsDelivr CDN (国内访问极快)
+      try {
+        blob = await removeBackground(file, {
+          publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.4.5/dist/',
+          output: { format: 'image/png', quality: 1.0 },
+          progress: (_key: string, current: number, total: number) => {
+            if (total > 0) {
+              const pct = Math.min(90, Math.round(25 + (current / total) * 65));
+              setProgressPercent(pct);
+            }
+          },
+        });
+      } catch (e1) {
+        console.warn('jsDelivr CDN node unavailable, trying unpkg CDN node:', e1);
+      }
+
+      // CDN Node 2: Backup unpkg CDN
+      if (!blob) {
+        try {
+          blob = await removeBackground(file, {
+            publicPath: 'https://unpkg.com/@imgly/background-removal-data@1.4.5/dist/',
+            output: { format: 'image/png', quality: 1.0 },
+            progress: (_key: string, current: number, total: number) => {
+              if (total > 0) {
+                const pct = Math.min(90, Math.round(25 + (current / total) * 65));
+                setProgressPercent(pct);
+              }
+            },
+          });
+        } catch (e2) {
+          console.warn('unpkg CDN node unavailable, trying default node:', e2);
+        }
+      }
+
+      // CDN Node 3: Default img.ly fallback
+      if (!blob) {
+        blob = await removeBackground(file, {
+          output: { format: 'image/png', quality: 1.0 },
+        });
+      }
 
       setProgressPercent(95);
       setProgressKey('正在生成 1:1 无损蒙版...');
