@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import { removeBackgroundSotaCloud } from './utils/sotaCloudApi';
 import type { SotaModelType } from './utils/sotaCloudApi';
@@ -12,7 +12,7 @@ import { ExportPanel } from './components/ExportPanel';
 import { FeaturesFooter } from './components/FeaturesFooter';
 import type { BackgroundConfig } from './utils/canvasHelper';
 import { createMaskCanvas } from './utils/canvasHelper';
-import { SlidersHorizontal, Layers, Key, ExternalLink, ShieldCheck, Flame } from 'lucide-react';
+import { SlidersHorizontal, Layers, Flame } from 'lucide-react';
 import './App.css';
 
 type AppState = 'idle' | 'processing' | 'ready';
@@ -25,12 +25,6 @@ export function App() {
 
   // Active AI Engine: Defaulted to Dual SOTA Model Fusion Mode
   const engineMode: AiEngineMode = 'fusion-dual';
-
-  // HF Access Token state (saved to localStorage)
-  const [hfToken, setHfToken] = useState<string>(() => {
-    return localStorage.getItem('hf_access_token') || '';
-  });
-  const [showTokenModal, setShowTokenModal] = useState(false);
 
   // File info
   const [fileName, setFileName] = useState('');
@@ -55,12 +49,6 @@ export function App() {
     customImage: null,
     blurAmount: 16,
   });
-
-  useEffect(() => {
-    if (hfToken) {
-      localStorage.setItem('hf_access_token', hfToken);
-    }
-  }, [hfToken]);
 
   const handleReset = () => {
     setAppState('idle');
@@ -105,7 +93,7 @@ export function App() {
         setProgressKey(`正在启动 ${mode === 'fusion-dual' ? '双 SOTA 模型融合引擎' : sotaModelId}...`);
 
         try {
-          blob = await removeBackgroundSotaCloud(file, sotaModelId, hfToken, (statusText) => {
+          blob = await removeBackgroundSotaCloud(file, sotaModelId, '', (statusText) => {
             setProgressKey(statusText);
             setProgressPercent(65);
           });
@@ -202,78 +190,13 @@ export function App() {
       <Header onReset={handleReset} hasImage={appState === 'ready'} />
 
       <main className="app-main">
-        {/* Free Token Setup Bar (Engine defaulted to Dual SOTA Fusion) */}
+        {/* Core AI Engine Indicator */}
         <div className="engine-selector-bar">
           <div className="engine-info">
             <Flame size={18} className="text-yellow" />
             <span>AI 核心引擎：<strong>🔥 双模型融合 (RMBG-2.0 + BiRefNet 旗舰双核)</strong></span>
           </div>
-
-          <div className="token-status-area">
-            <button
-              className={`token-btn ${hfToken ? 'connected' : ''}`}
-              onClick={() => setShowTokenModal(!showTokenModal)}
-            >
-              <Key size={14} />
-              <span>{hfToken ? '已配置免费 HuggingFace Token' : '配置免费 HF Token (加速云端大模型)'}</span>
-            </button>
-          </div>
         </div>
-
-        {/* Hugging Face Free Token Setup Panel Modal */}
-        {showTokenModal && (
-          <div className="token-modal-card">
-            <div className="token-modal-header">
-              <div className="token-modal-title">
-                <ShieldCheck size={18} className="text-green" />
-                <span>配置免费 HuggingFace Token（解锁 RMBG-2.0 + BiRefNet 双核大模型直连）</span>
-              </div>
-              <button className="close-btn" onClick={() => setShowTokenModal(false)}>
-                ✕
-              </button>
-            </div>
-            <div className="token-modal-body">
-              <p className="token-desc">
-                Hugging Face 官方提供 <strong>100% 免费</strong> 的 User Access Token。填入后即可享受到极速、稳定、无等待的云端 A100 GPU 旗舰抠图大模型！
-              </p>
-
-              <div className="token-input-row">
-                <input
-                  type="password"
-                  placeholder="粘贴您的免费 Token (例如: hf_...)"
-                  value={hfToken}
-                  onChange={(e) => setHfToken(e.target.value)}
-                  className="token-input"
-                />
-                <button
-                  className="save-token-btn"
-                  onClick={() => setShowTokenModal(false)}
-                >
-                  保存并应用
-                </button>
-              </div>
-
-              <div className="token-guide-box">
-                <span className="guide-title">💡 30 秒免费获取 Token 步骤：</span>
-                <ol className="guide-list">
-                  <li>
-                    1. 点击直达页面：{' '}
-                    <a
-                      href="https://huggingface.co/settings/tokens/new?tokenType=read"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="external-link"
-                    >
-                      直接新建免费 Token 页面 <ExternalLink size={12} />
-                    </a>
-                  </li>
-                  <li>2. Token 名称填 <code>remover</code>，权限选 <code>Read</code>，点击底部 <strong>“Create token”</strong> 按钮。</li>
-                  <li>3. 复制生成的 <code>hf_...</code> 密钥，粘贴到上方输入框点击保存。</li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        )}
 
         {appState === 'idle' && (
           <>
