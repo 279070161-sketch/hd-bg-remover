@@ -1,37 +1,39 @@
 import { AutoModel, AutoProcessor, RawImage, env } from '@xenova/transformers';
 
-// Configure Transformers.js to load local model files with automatic CDN fallback & caching
+// Configure Transformers.js with国内极速镜像 (hf-mirror.com) and browser cache
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
 env.useBrowserCache = true;
+env.remoteHost = 'https://hf-mirror.com/';
+env.remotePath = '{model}/resolve/main/';
 const baseUrl = import.meta.env.BASE_URL || '/';
 env.localModelPath = baseUrl.endsWith('/') ? baseUrl + 'models/' : baseUrl + '/models/';
 
 let modelPromise: Promise<any> | null = null;
 let processorPromise: Promise<any> | null = null;
 
-const MODEL_ID = 'briaai-rmbg-1.4';
+const MODEL_ID = 'briaai/RMBG-1.4';
 
 /**
- * Pre-loads or fetches the SOTA AI matting model from local public assets.
+ * Pre-loads or fetches the SOTA AI matting model with fast CDN mirror.
  */
 export async function getRMBGModel(onProgress?: (progress: number, text: string) => void) {
   try {
     if (!modelPromise) {
       modelPromise = AutoModel.from_pretrained(MODEL_ID, {
-        local_files_only: true,
+        local_files_only: false,
         quantized: true,
         progress_callback: (p: any) => {
           if (p.status === 'progress' && onProgress) {
             const pct = Math.round(10 + (p.progress || 0) * 0.7);
-            onProgress(pct, `正在从本地加载 SOTA 抠图大模型... ${Math.round(p.progress || 0)}%`);
+            onProgress(pct, `正在极速加载 SOTA 抠图大模型... ${Math.round((p.loaded || 0) / 1024 / 1024)}MB`);
           }
         },
       });
     }
     if (!processorPromise) {
       processorPromise = AutoProcessor.from_pretrained(MODEL_ID, {
-        local_files_only: true,
+        local_files_only: false,
       });
     }
 
@@ -39,7 +41,7 @@ export async function getRMBGModel(onProgress?: (progress: number, text: string)
     const processor = await processorPromise;
     return { model, processor };
   } catch (err) {
-    console.error('Failed to load local ONNX model:', err);
+    console.error('Failed to load RMBG model from CDN mirror:', err);
     modelPromise = null;
     processorPromise = null;
     throw err;
