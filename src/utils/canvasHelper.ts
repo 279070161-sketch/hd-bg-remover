@@ -202,9 +202,6 @@ export function createMaskCanvas(
   // Draw raw cutout image onto canvas
   ctx.drawImage(cutoutImg, 0, 0, width, height);
 
-  // Automatically retain main subject component and purge floating noise
-  keepMainSubjectComponent(canvas);
-
   return canvas;
 }
 

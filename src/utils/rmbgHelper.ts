@@ -1,10 +1,11 @@
 import { AutoModel, AutoProcessor, RawImage, env } from '@xenova/transformers';
 
-// Configure Transformers.js to load 100% local model files without stale browser cache
+// Configure Transformers.js to load local model files with automatic CDN fallback & caching
 env.allowLocalModels = true;
-env.allowRemoteModels = false;
-env.useBrowserCache = false;
-env.localModelPath = '/models/';
+env.allowRemoteModels = true;
+env.useBrowserCache = true;
+const baseUrl = import.meta.env.BASE_URL || '/';
+env.localModelPath = baseUrl.endsWith('/') ? baseUrl + 'models/' : baseUrl + '/models/';
 
 let modelPromise: Promise<any> | null = null;
 let processorPromise: Promise<any> | null = null;

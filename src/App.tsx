@@ -61,7 +61,7 @@ export function App() {
     setViewMode('editor');
   };
 
-  const processImageFileWithEngine = async (file: File, mode: AiEngineMode) => {
+  const processImageFileWithEngine = async (file: File, _mode?: AiEngineMode) => {
     setFileName(file.name);
     setFileSize(file.size);
     setAppState('processing');
@@ -79,44 +79,37 @@ export function App() {
 
       let blob: Blob | null = null;
 
-      if (mode === 'fusion-dual' || mode === 'rmbg-2.0' || mode === 'birefnet-anime' || mode === 'birefnet') {
-        const sotaModelId: SotaModelType =
-          mode === 'fusion-dual'
-            ? 'fusion-dual'
-            : mode === 'rmbg-2.0'
-            ? 'briaai/RMBG-2.0'
-            : mode === 'birefnet-anime'
-            ? 'ZhengPeng7/BiRefNet-anime'
-            : 'ZhengPeng7/BiRefNet';
+      // 1. Try SOTA Cloud / Local RMBG models
+      setProgressPercent(20);
+      setProgressKey('正在启动旗舰 AI 神经网络抠图引擎...');
 
-        setProgressPercent(25);
-        setProgressKey(`正在启动 ${mode === 'fusion-dual' ? '双 SOTA 模型融合引擎' : sotaModelId}...`);
-
-        try {
-          blob = await removeBackgroundSotaCloud(file, sotaModelId, '', (statusText) => {
-            setProgressKey(statusText);
-            setProgressPercent(65);
-          });
-        } catch (cloudErr) {
-          console.warn('Cloud SOTA model fallback to local FP16:', cloudErr);
-          setProgressKey('云端大模型连接中，正在自动衔接高精 16-bit 本地引擎...');
-          blob = null;
-        }
+      try {
+        blob = await removeBackgroundSotaCloud(file, 'fusion-dual', '', (statusText) => {
+          setProgressKey(statusText);
+          setProgressPercent(60);
+        });
+      } catch (cloudErr) {
+        console.warn('Cloud endpoint fallback to local WebAssembly engine:', cloudErr);
       }
 
-      // Fallback to local FP16 engine if blob is null
+      // 2. High-precision WebAssembly fallback engine with public CDN asset path
       if (!blob) {
-        setProgressKey('正在通过本地高精 16-bit 引擎推理...');
+        setProgressKey('正在通过 100% 纯前端高精 AI 抠图引擎推理...');
         blob = await removeBackground(file, {
+          publicPath: 'https://static.img.ly/background-removal-data/1.4.5/',
           model: 'isnet_fp16',
           output: { format: 'image/png', quality: 1.0 },
           progress: (_key: string, current: number, total: number) => {
             if (total > 0) {
-              const pct = Math.min(90, Math.round(15 + (current / total) * 75));
+              const pct = Math.min(90, Math.round(20 + (current / total) * 70));
               setProgressPercent(pct);
             }
           },
         });
+      }
+
+      if (!blob) {
+        throw new Error('抠图引擎未返回有效的图像数据');
       }
 
       setProgressPercent(95);
@@ -126,7 +119,10 @@ export function App() {
       const cutoutUrl = URL.createObjectURL(blob);
       const cutImg = new Image();
       cutImg.src = cutoutUrl;
-      await new Promise((res) => (cutImg.onload = res));
+      await new Promise((res, rej) => {
+        cutImg.onload = res;
+        cutImg.onerror = rej;
+      });
 
       // Extract 1:1 original resolution alpha mask canvas
       const mask = createMaskCanvas(origImg, cutImg);
@@ -136,23 +132,8 @@ export function App() {
       setAppState('ready');
     } catch (err) {
       console.error('Background removal processing error:', err);
-      try {
-        const origUrl = URL.createObjectURL(file);
-        const origImg = new Image();
-        origImg.src = origUrl;
-        await new Promise((res) => (origImg.onload = res));
-        setOriginalImage(origImg);
-
-        const dummyCanvas = document.createElement('canvas');
-        dummyCanvas.width = origImg.naturalWidth;
-        dummyCanvas.height = origImg.naturalHeight;
-
-        setMaskCanvas(dummyCanvas);
-        setAppState('ready');
-      } catch (finalErr) {
-        console.error('Final fallback error:', finalErr);
-        setAppState('idle');
-      }
+      alert('抠图处理失败，请检查网络或重新选择图片重试。');
+      setAppState('idle');
     }
   };
 
