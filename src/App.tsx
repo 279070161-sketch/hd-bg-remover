@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
-import { removeBackgroundRMBG } from './utils/rmbgHelper';
 import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { ProcessingProgress } from './components/ProcessingProgress';
@@ -10,20 +9,16 @@ import { BackgroundSelector } from './components/BackgroundSelector';
 import { ExportPanel } from './components/ExportPanel';
 import { FeaturesFooter } from './components/FeaturesFooter';
 import type { BackgroundConfig } from './utils/canvasHelper';
-import { createMaskCanvas, smartFallbackMatting } from './utils/canvasHelper';
-import { SlidersHorizontal, Layers, Flame } from 'lucide-react';
+import { createMaskCanvas } from './utils/canvasHelper';
+import { SlidersHorizontal, Layers } from 'lucide-react';
 import './App.css';
 
 type AppState = 'idle' | 'processing' | 'ready';
 type ViewMode = 'editor' | 'compare';
-export type AiEngineMode = 'fusion-dual' | 'rmbg-2.0' | 'birefnet-anime' | 'birefnet' | 'isnet';
 
 export function App() {
   const [appState, setAppState] = useState<AppState>('idle');
   const [viewMode, setViewMode] = useState<ViewMode>('editor');
-
-  // Active AI Engine: Defaulted to Dual SOTA Model Fusion Mode
-  const engineMode: AiEngineMode = 'fusion-dual';
 
   // File info
   const [fileName, setFileName] = useState('');
@@ -60,14 +55,13 @@ export function App() {
     setViewMode('editor');
   };
 
-  const processImageFileWithEngine = async (file: File, _mode?: AiEngineMode) => {
+  const processImageFile = async (file: File) => {
     setFileName(file.name);
     setFileSize(file.size);
     setAppState('processing');
     setProgressPercent(10);
 
     try {
-      // 1. Create HTMLImageElement for original
       const origUrl = URL.createObjectURL(file);
       setOriginalUrl(origUrl);
 
@@ -76,89 +70,39 @@ export function App() {
       await new Promise((res) => (origImg.onload = res));
       setOriginalImage(origImg);
 
-      let blob: Blob | null = null;
-
-      // 🛡️ 防线一：100% 纯前端 ISNet 高精 WASM AI 抠图引擎 (产品/白底图/机器壳极佳)
       setProgressPercent(25);
-      setProgressKey('正在通过 100% 纯前端高精 AI 抠图引擎推理...');
-      try {
-        blob = await removeBackground(file, {
-          publicPath: 'https://static.img.ly/background-removal-data/1.4.5/',
-          model: 'isnet_fp16',
-          output: { format: 'image/png', quality: 1.0 },
-          progress: (_key: string, current: number, total: number) => {
-            if (total > 0) {
-              const pct = Math.min(90, Math.round(25 + (current / total) * 65));
-              setProgressPercent(pct);
-            }
-          },
-        });
-      } catch (imglyErr) {
-        console.warn('ISNet WASM engine issue, trying RMBG neural network:', imglyErr);
-      }
+      setProgressKey('正在通过高精 AI 模型进行无损抠图...');
 
-      // 🛡️ 防线二：RMBG-1.4 神经网络大模型 (本地 ONNX 与镜像)
-      if (!blob) {
-        setProgressKey('正在通过 SOTA 神经网络大模型推理...');
-        try {
-          blob = await removeBackgroundRMBG(file, (pct, text) => {
+      // Original pure & flawless background removal
+      const blob = await removeBackground(file, {
+        publicPath: 'https://static.img.ly/background-removal-data/1.4.5/',
+        output: { format: 'image/png', quality: 1.0 },
+        progress: (_key: string, current: number, total: number) => {
+          if (total > 0) {
+            const pct = Math.min(90, Math.round(25 + (current / total) * 65));
             setProgressPercent(pct);
-            setProgressKey(text);
-          });
-        } catch (rmbgErr) {
-          console.warn('RMBG model issue, falling back to smart canvas matting:', rmbgErr);
-        }
-      }
-
-      // 🛡️ 防线三：100% 离线零网络保底算法 (智能色度/轮廓分割)
-      if (!blob) {
-        setProgressKey('正在通过本地智能色度分割引擎处理...');
-        blob = smartFallbackMatting(origImg);
-      }
+          }
+        },
+      });
 
       setProgressPercent(95);
       setProgressKey('正在生成 1:1 无损蒙版...');
 
-      // Load returned cutout blob into HTMLImageElement
       const cutoutUrl = URL.createObjectURL(blob);
       const cutImg = new Image();
       cutImg.src = cutoutUrl;
-      await new Promise((res) => {
-        cutImg.onload = res;
-        cutImg.onerror = res;
-      });
+      await new Promise((res) => (cutImg.onload = res));
 
-      // Extract 1:1 original resolution alpha mask canvas
       const mask = createMaskCanvas(origImg, cutImg);
       setMaskCanvas(mask);
 
       setProgressPercent(100);
       setAppState('ready');
     } catch (err) {
-      console.error('Background removal processing error:', err);
-      // Absolute safeguard fallback
-      try {
-        const origUrl = URL.createObjectURL(file);
-        const fallbackImg = new Image();
-        fallbackImg.src = origUrl;
-        await new Promise((res) => (fallbackImg.onload = res));
-        setOriginalImage(fallbackImg);
-
-        const mask = smartFallbackMatting(fallbackImg);
-        const cutoutUrl = URL.createObjectURL(mask);
-        const cutImg = new Image();
-        cutImg.src = cutoutUrl;
-        await new Promise((res) => (cutImg.onload = res));
-        setMaskCanvas(createMaskCanvas(fallbackImg, cutImg));
-        setAppState('ready');
-      } catch (e) {
-        setAppState('idle');
-      }
+      console.error('Background removal error:', err);
+      alert('抠图推理失败，请检查网络或重新选择图片。');
+      setAppState('idle');
     }
-  };
-
-  const processImageFile = (file: File) => {
-    processImageFileWithEngine(file, engineMode);
   };
 
   const handleSelectSample = async (url: string, name: string) => {
@@ -170,7 +114,7 @@ export function App() {
       const response = await fetch(url);
       const blob = await response.blob();
       const file = new File([blob], `${name}.jpg`, { type: 'image/jpeg' });
-      processImageFileWithEngine(file, engineMode);
+      processImageFile(file);
     } catch (err) {
       console.error('Failed to load sample image:', err);
       setAppState('idle');
@@ -191,14 +135,6 @@ export function App() {
       <Header onReset={handleReset} hasImage={appState === 'ready'} />
 
       <main className="app-main">
-        {/* Core AI Engine Indicator */}
-        <div className="engine-selector-bar">
-          <div className="engine-info">
-            <Flame size={18} className="text-yellow" />
-            <span>AI 核心引擎：<strong>🔥 双模型融合 (RMBG-2.0 + BiRefNet 旗舰双核)</strong></span>
-          </div>
-        </div>
-
         {appState === 'idle' && (
           <>
             <DropZone onFileSelect={processImageFile} onSelectSample={handleSelectSample} />
@@ -221,22 +157,11 @@ export function App() {
 
         {appState === 'ready' && originalImage && maskCanvas && (
           <div className="workspace-container">
-            {/* View Mode Toggle & Header Stats */}
             <div className="workspace-toolbar">
               <div className="file-info-badge">
                 <span className="file-name">{fileName}</span>
                 <span className="res-tag">
                   {originalImage.naturalWidth} × {originalImage.naturalHeight} px (1:1 原画)
-                </span>
-                <span className="engine-tag">
-                  <Flame size={13} className="text-yellow" />{' '}
-                  {engineMode === 'fusion-dual'
-                    ? '🔥 双模型融合 (RMBG-2.0 + BiRefNet 双核极净)'
-                    : engineMode === 'rmbg-2.0'
-                    ? 'BRIA RMBG-2.0 云端旗舰大模型'
-                    : engineMode === 'birefnet'
-                    ? 'BiRefNet 深度分割大模型'
-                    : 'ISNet 16-bit 本地引擎'}
                 </span>
               </div>
 
@@ -256,7 +181,6 @@ export function App() {
               </div>
             </div>
 
-            {/* Main Stage */}
             <div className="workspace-stage">
               {viewMode === 'editor' ? (
                 <CanvasEditor
@@ -276,10 +200,8 @@ export function App() {
               )}
             </div>
 
-            {/* Background Switcher Controls */}
             <BackgroundSelector config={bgConfig} onChange={setBgConfig} />
 
-            {/* Export & Resolution Guarantee Stats Panel */}
             <ExportPanel
               canvas={renderedCanvas}
               originalWidth={originalImage.naturalWidth}
