@@ -1,7 +1,5 @@
 import { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
-import { removeBackgroundSotaCloud } from './utils/sotaCloudApi';
-import type { SotaModelType } from './utils/sotaCloudApi';
 import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { ProcessingProgress } from './components/ProcessingProgress';
