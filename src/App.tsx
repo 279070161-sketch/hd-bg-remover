@@ -138,12 +138,18 @@ export function App() {
       console.error('Background removal processing error:', err);
       // Absolute safeguard fallback
       try {
-        const mask = smartFallbackMatting(origImg);
+        const origUrl = URL.createObjectURL(file);
+        const fallbackImg = new Image();
+        fallbackImg.src = origUrl;
+        await new Promise((res) => (fallbackImg.onload = res));
+        setOriginalImage(fallbackImg);
+
+        const mask = smartFallbackMatting(fallbackImg);
         const cutoutUrl = URL.createObjectURL(mask);
         const cutImg = new Image();
         cutImg.src = cutoutUrl;
         await new Promise((res) => (cutImg.onload = res));
-        setMaskCanvas(createMaskCanvas(origImg, cutImg));
+        setMaskCanvas(createMaskCanvas(fallbackImg, cutImg));
         setAppState('ready');
       } catch (e) {
         setAppState('idle');

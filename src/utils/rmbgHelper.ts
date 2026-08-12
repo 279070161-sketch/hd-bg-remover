@@ -5,7 +5,6 @@ env.allowLocalModels = true;
 env.allowRemoteModels = true;
 env.useBrowserCache = true;
 env.remoteHost = 'https://hf-mirror.com/';
-env.remotePath = '{model}/resolve/main/';
 const baseUrl = import.meta.env.BASE_URL || '/';
 env.localModelPath = baseUrl.endsWith('/') ? baseUrl + 'models/' : baseUrl + '/models/';
 
