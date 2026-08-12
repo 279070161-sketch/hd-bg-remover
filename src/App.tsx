@@ -12,7 +12,7 @@ import { ExportPanel } from './components/ExportPanel';
 import { FeaturesFooter } from './components/FeaturesFooter';
 import type { BackgroundConfig } from './utils/canvasHelper';
 import { createMaskCanvas } from './utils/canvasHelper';
-import { SlidersHorizontal, Layers, Sparkles, Cpu, Key, ExternalLink, ShieldCheck, Flame } from 'lucide-react';
+import { SlidersHorizontal, Layers, Key, ExternalLink, ShieldCheck, Flame } from 'lucide-react';
 import './App.css';
 
 type AppState = 'idle' | 'processing' | 'ready';
@@ -23,8 +23,8 @@ export function App() {
   const [appState, setAppState] = useState<AppState>('idle');
   const [viewMode, setViewMode] = useState<ViewMode>('editor');
 
-  // Active AI Engine: Default to Dual SOTA Model Fusion Mode
-  const [engineMode, setEngineMode] = useState<AiEngineMode>('fusion-dual');
+  // Active AI Engine: Defaulted to Dual SOTA Model Fusion Mode
+  const engineMode: AiEngineMode = 'fusion-dual';
 
   // HF Access Token state (saved to localStorage)
   const [hfToken, setHfToken] = useState<string>(() => {
@@ -35,7 +35,6 @@ export function App() {
   // File info
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState(0);
-  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
   // Progress stats
   const [progressPercent, setProgressPercent] = useState(0);
@@ -72,11 +71,9 @@ export function App() {
     setRenderedCanvasUrl('');
     setProgressPercent(0);
     setViewMode('editor');
-    setCurrentFile(null);
   };
 
   const processImageFileWithEngine = async (file: File, mode: AiEngineMode) => {
-    setCurrentFile(file);
     setFileName(file.name);
     setFileSize(file.size);
     setAppState('processing');
@@ -175,13 +172,6 @@ export function App() {
     processImageFileWithEngine(file, engineMode);
   };
 
-  const handleSwitchEngine = (newMode: AiEngineMode) => {
-    setEngineMode(newMode);
-    if (currentFile) {
-      processImageFileWithEngine(currentFile, newMode);
-    }
-  };
-
   const handleSelectSample = async (url: string, name: string) => {
     setFileName(`${name}.jpg`);
     setAppState('processing');
@@ -212,41 +202,11 @@ export function App() {
       <Header onReset={handleReset} hasImage={appState === 'ready'} />
 
       <main className="app-main">
-        {/* SOTA AI Engine Selector & Free Token Header Bar */}
+        {/* Free Token Setup Bar (Engine defaulted to Dual SOTA Fusion) */}
         <div className="engine-selector-bar">
           <div className="engine-info">
             <Flame size={18} className="text-yellow" />
-            <span>AI 抠图引擎模式：</span>
-          </div>
-          <div className="engine-buttons">
-            <button
-              className={`engine-btn ${engineMode === 'birefnet-anime' ? 'active-sota' : ''}`}
-              onClick={() => handleSwitchEngine('birefnet-anime')}
-              title="🎨 BiRefNet-Anime (漫画/插画速写专属 SOTA 大模型，自动识别人体并彻底擦除背景速度线与阴影)"
-            >
-              <Sparkles size={14} className="text-yellow" /> 🎨 BiRefNet-Anime (速写/速度线专属)
-            </button>
-            <button
-              className={`engine-btn ${engineMode === 'fusion-dual' ? 'active-sota' : ''}`}
-              onClick={() => handleSwitchEngine('fusion-dual')}
-              title="🔥 双模型融合 (RMBG-2.0 + BiRefNet 强力双核驱动)"
-            >
-              <Flame size={14} /> 🔥 双模型融合 (RMBG-2.0 + BiRefNet)
-            </button>
-            <button
-              className={`engine-btn ${engineMode === 'rmbg-2.0' ? 'active-sota' : ''}`}
-              onClick={() => handleSwitchEngine('rmbg-2.0')}
-              title="BRIA RMBG-2.0 (PhotoRoom 2026 旗舰同款云端大模型)"
-            >
-              <Sparkles size={14} /> BRIA RMBG-2.0
-            </button>
-            <button
-              className={`engine-btn ${engineMode === 'isnet' ? 'active' : ''}`}
-              onClick={() => handleSwitchEngine('isnet')}
-              title="ISNet 高精 16-bit 本地引擎"
-            >
-              <Cpu size={14} /> ISNet-FP16
-            </button>
+            <span>AI 核心引擎：<strong>🔥 双模型融合 (RMBG-2.0 + BiRefNet 旗舰双核)</strong></span>
           </div>
 
           <div className="token-status-area">
