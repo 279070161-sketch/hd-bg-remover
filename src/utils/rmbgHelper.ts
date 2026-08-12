@@ -1,38 +1,61 @@
 import { AutoModel, AutoProcessor, RawImage, env } from '@xenova/transformers';
 
-// Configure Transformers.js with国内极速镜像 (hf-mirror.com) and browser cache
+// Dynamically compute the exact local models path for both dev server and GitHub Pages subpath
+const getLocalModelsPath = () => {
+  if (typeof window === 'undefined') return '/models/';
+  const path = window.location.pathname;
+  const base = path.endsWith('/') ? path : path.substring(0, path.lastIndexOf('/') + 1);
+  return base + 'models/';
+};
+
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
 env.useBrowserCache = true;
 env.remoteHost = 'https://hf-mirror.com/';
-const baseUrl = import.meta.env.BASE_URL || '/';
-env.localModelPath = baseUrl.endsWith('/') ? baseUrl + 'models/' : baseUrl + '/models/';
+env.localModelPath = getLocalModelsPath();
 
 let modelPromise: Promise<any> | null = null;
 let processorPromise: Promise<any> | null = null;
 
-const MODEL_ID = 'briaai/RMBG-1.4';
+const LOCAL_MODEL_ID = 'briaai-rmbg-1.4';
+const REMOTE_MODEL_ID = 'Xenova/briaai-rmbg-1.4';
 
 /**
- * Pre-loads or fetches the SOTA AI matting model with fast CDN mirror.
+ * Pre-loads or fetches the SOTA AI matting model with local ONNX and fast CDN mirror fallback.
  */
 export async function getRMBGModel(onProgress?: (progress: number, text: string) => void) {
   try {
     if (!modelPromise) {
-      modelPromise = AutoModel.from_pretrained(MODEL_ID, {
-        local_files_only: false,
+      modelPromise = AutoModel.from_pretrained(LOCAL_MODEL_ID, {
+        local_files_only: true,
         quantized: true,
         progress_callback: (p: any) => {
           if (p.status === 'progress' && onProgress) {
             const pct = Math.round(10 + (p.progress || 0) * 0.7);
-            onProgress(pct, `正在极速加载 SOTA 抠图大模型... ${Math.round((p.loaded || 0) / 1024 / 1024)}MB`);
+            onProgress(pct, `正在极速加载 SOTA 抠图大模型... ${Math.round(p.progress || 0)}%`);
           }
         },
+      }).catch(async (localErr) => {
+        console.warn('Local ONNX model not found, falling back to hf-mirror CDN:', localErr);
+        return await AutoModel.from_pretrained(REMOTE_MODEL_ID, {
+          local_files_only: false,
+          quantized: true,
+          progress_callback: (p: any) => {
+            if (p.status === 'progress' && onProgress) {
+              const pct = Math.round(10 + (p.progress || 0) * 0.7);
+              onProgress(pct, `正在从镜像极速加载 SOTA 抠图大模型... ${Math.round((p.loaded || 0) / 1024 / 1024)}MB`);
+            }
+          },
+        });
       });
     }
     if (!processorPromise) {
-      processorPromise = AutoProcessor.from_pretrained(MODEL_ID, {
-        local_files_only: false,
+      processorPromise = AutoProcessor.from_pretrained(LOCAL_MODEL_ID, {
+        local_files_only: true,
+      }).catch(async () => {
+        return await AutoProcessor.from_pretrained(REMOTE_MODEL_ID, {
+          local_files_only: false,
+        });
       });
     }
 
