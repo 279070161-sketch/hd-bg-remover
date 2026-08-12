@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { removeBackground } from '@imgly/background-removal';
+import { removeBackgroundSotaCloud } from './utils/sotaCloudApi';
 import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { ProcessingProgress } from './components/ProcessingProgress';
@@ -82,7 +83,7 @@ export function App() {
       setProgressKey('正在启动旗舰 AI 神经网络抠图引擎...');
 
       try {
-        blob = await removeBackgroundSotaCloud(file, 'fusion-dual', '', (statusText) => {
+        blob = await removeBackgroundSotaCloud(file, 'fusion-dual', '', (statusText: string) => {
           setProgressKey(statusText);
           setProgressPercent(60);
         });
