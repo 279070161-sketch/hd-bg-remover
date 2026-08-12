@@ -83,14 +83,22 @@ export async function removeBackgroundRMBG(
 
   if (onProgress) onProgress(75, 'SOTA AI 神经网络正在推理发丝与微米级轮廓...');
 
-  // Convert File/Blob to RawImage
+  // Convert File/Blob to HTMLImageElement for 100% accurate original resolution
   const imgUrl = URL.createObjectURL(file);
+  const origImg = new Image();
+  origImg.src = imgUrl;
+  await new Promise((res) => (origImg.onload = res));
+
+  const origWidth = origImg.naturalWidth;
+  const origHeight = origImg.naturalHeight;
+
+  // Convert File/Blob to RawImage for Transformers.js input
   const image = await RawImage.fromURL(imgUrl);
 
   // Preprocess input pixels
   const processed = await processor(image);
 
-  // Run model inference with correct ONNX input parameter name
+  // Run model inference
   let outputResult: any;
   if (processed.pixel_values) {
     try {
@@ -116,17 +124,6 @@ export async function removeBackgroundRMBG(
   const tensorHeight = dims[dims.length - 2];
   const tensorWidth = dims[dims.length - 1];
 
-  // Detect output tensor dynamic range (0..1 matte vs raw logits)
-  let minVal = Infinity;
-  let maxVal = -Infinity;
-  for (let i = 0; i < tensorData.length; i++) {
-    const v = tensorData[i];
-    if (v < minVal) minVal = v;
-    if (v > maxVal) maxVal = v;
-  }
-
-  const isPreActivated = minVal >= -0.05 && maxVal <= 1.05;
-
   // 1. Build intermediate canvas for raw model output
   const tensorCanvas = document.createElement('canvas');
   tensorCanvas.width = tensorWidth;
@@ -136,17 +133,10 @@ export async function removeBackgroundRMBG(
 
   for (let i = 0; i < tensorData.length; i++) {
     const val = tensorData[i];
-    let normAlpha: number;
-
-    if (isPreActivated) {
-      // Already 0.0 .. 1.0 probability matte
-      normAlpha = Math.max(0, Math.min(1, val));
-    } else {
-      // Raw logits: apply Sigmoid 1 / (1 + exp(-val))
-      normAlpha = 1 / (1 + Math.exp(-val));
-    }
-
-    const alphaByte = Math.round(normAlpha * 255);
+    
+    // Always compute accurate Sigmoid probability: 1 / (1 + exp(-val))
+    const normAlpha = 1 / (1 + Math.exp(-val));
+    const alphaByte = Math.round(Math.max(0, Math.min(1, normAlpha)) * 255);
 
     const idx = i * 4;
     tensorImageData.data[idx] = 255;
@@ -156,28 +146,24 @@ export async function removeBackgroundRMBG(
   }
   tensorCtx.putImageData(tensorImageData, 0, 0);
 
-  // 2. High-quality smooth scaling to 1:1 original image dimensions
+  // 2. High-quality smooth scaling to exact 1:1 original image dimensions
   const maskCanvas = document.createElement('canvas');
-  maskCanvas.width = image.width;
-  maskCanvas.height = image.height;
+  maskCanvas.width = origWidth;
+  maskCanvas.height = origHeight;
   const maskCtx = maskCanvas.getContext('2d')!;
   maskCtx.imageSmoothingEnabled = true;
   maskCtx.imageSmoothingQuality = 'high';
-  maskCtx.drawImage(tensorCanvas, 0, 0, image.width, image.height);
+  maskCtx.drawImage(tensorCanvas, 0, 0, origWidth, origHeight);
 
   // 3. Composite original image with high-precision Sigmoid alpha mask
   const outputCanvas = document.createElement('canvas');
-  outputCanvas.width = image.width;
-  outputCanvas.height = image.height;
+  outputCanvas.width = origWidth;
+  outputCanvas.height = origHeight;
   const outCtx = outputCanvas.getContext('2d')!;
 
-  const origImg = new Image();
-  origImg.src = imgUrl;
-  await new Promise((res) => (origImg.onload = res));
-  outCtx.drawImage(origImg, 0, 0);
-
+  outCtx.drawImage(origImg, 0, 0, origWidth, origHeight);
   outCtx.globalCompositeOperation = 'destination-in';
-  outCtx.drawImage(maskCanvas, 0, 0);
+  outCtx.drawImage(maskCanvas, 0, 0, origWidth, origHeight);
 
   setTimeout(() => URL.revokeObjectURL(imgUrl), 2000);
 

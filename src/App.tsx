@@ -78,35 +78,35 @@ export function App() {
 
       let blob: Blob | null = null;
 
-      // 🛡️ 防线一：极速国内镜像 RMBG-1.4 神经网络大模型 (hf-mirror.com 直连)
-      setProgressPercent(20);
-      setProgressKey('正在通过旗舰 AI 神经网络大模型推理...');
+      // 🛡️ 防线一：100% 纯前端 ISNet 高精 WASM AI 抠图引擎 (产品/白底图/机器壳极佳)
+      setProgressPercent(25);
+      setProgressKey('正在通过 100% 纯前端高精 AI 抠图引擎推理...');
       try {
-        blob = await removeBackgroundRMBG(file, (pct, text) => {
-          setProgressPercent(pct);
-          setProgressKey(text);
+        blob = await removeBackground(file, {
+          publicPath: 'https://static.img.ly/background-removal-data/1.4.5/',
+          model: 'isnet_fp16',
+          output: { format: 'image/png', quality: 1.0 },
+          progress: (_key: string, current: number, total: number) => {
+            if (total > 0) {
+              const pct = Math.min(90, Math.round(25 + (current / total) * 65));
+              setProgressPercent(pct);
+            }
+          },
         });
-      } catch (rmbgErr) {
-        console.warn('RMBG model load issue, switching to secondary WASM engine:', rmbgErr);
+      } catch (imglyErr) {
+        console.warn('ISNet WASM engine issue, trying RMBG neural network:', imglyErr);
       }
 
-      // 🛡️ 防线二：WebAssembly 多节点 CDN 引擎 (@imgly/background-removal)
+      // 🛡️ 防线二：RMBG-1.4 神经网络大模型 (本地 ONNX 与镜像)
       if (!blob) {
-        setProgressKey('正在通过 100% 纯前端 WASM 高精 AI 抠图引擎推理...');
+        setProgressKey('正在通过 SOTA 神经网络大模型推理...');
         try {
-          blob = await removeBackground(file, {
-            publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.4.5/dist/',
-            model: 'isnet_fp16',
-            output: { format: 'image/png', quality: 1.0 },
-            progress: (_key: string, current: number, total: number) => {
-              if (total > 0) {
-                const pct = Math.min(90, Math.round(20 + (current / total) * 70));
-                setProgressPercent(pct);
-              }
-            },
+          blob = await removeBackgroundRMBG(file, (pct, text) => {
+            setProgressPercent(pct);
+            setProgressKey(text);
           });
-        } catch (imglyErr) {
-          console.warn('WASM engine issue, switching to offline smart canvas engine:', imglyErr);
+        } catch (rmbgErr) {
+          console.warn('RMBG model issue, falling back to smart canvas matting:', rmbgErr);
         }
       }
 
